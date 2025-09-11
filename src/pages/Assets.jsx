@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import AssetList from '../components/Assets/AssetList'
 import SearchBar from '../components/UI/SearchBar'
 import { assetService } from '../services/assetService'
+import './Assets.css'
 
 const Assets = () => {
   const [searchTerm, setSearchTerm] = useState('')

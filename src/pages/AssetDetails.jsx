@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { assetService } from '../services/assetService'
 import { maintenanceService } from '../services/maintenanceService'
+import './AssetDetails.css'
 
 const AssetDetails = () => {
   const { id } = useParams()

@@ -8,6 +8,7 @@ const Assignments = () => {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     assetId: '',
@@ -18,7 +19,7 @@ const Assignments = () => {
 
   useEffect(() => {
     fetchAssignments();
-    fetchAvailableAssets();
+    fetchAssets();
   }, []);
 
   const fetchAssignments = async () => {
@@ -34,11 +35,10 @@ const Assignments = () => {
     }
   };
 
-  const fetchAvailableAssets = async () => {
+  const fetchAssets = async () => {
     try {
       const response = await assetService.getAllAssets();
-      const availableAssets = response.data.filter(asset => asset.status === 'Available');
-      setAssets(availableAssets);
+      setAssets(response.data || []);
     } catch (err) {
       console.error('Failed to fetch assets:', err);
     }
@@ -78,41 +78,71 @@ const Assignments = () => {
         notes: ''
       });
       
+      setSuccess('Asset assigned successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+      
       fetchAssignments();
-      fetchAvailableAssets();
+      fetchAssets();
     } catch (err) {
       console.error('Failed to create assignment:', err);
       setError('Failed to create assignment. Please try again.');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
   const handleReturnAsset = async (assignmentId, assetId) => {
     try {
-      // Update assignment with return date
+      // First get the current assignment details
       const assignment = assignments.find(a => a.id === assignmentId);
-      await assignmentService.updateAssignment(assignmentId, {
+      if (!assignment) {
+        throw new Error('Assignment not found');
+      }
+
+      // Update assignment with return date
+      const updatedAssignment = {
         ...assignment,
         returnDate: new Date().toISOString().split('T')[0]
-      });
+      };
+
+      await assignmentService.updateAssignment(assignmentId, updatedAssignment);
+
+      // Get the current asset details
+      let asset;
+      try {
+        const assetResponse = await assetService.getAssetById(assetId);
+        asset = assetResponse.data;
+      } catch (assetError) {
+        console.error('Failed to fetch asset details:', assetError);
+        // If we can't get the asset, create a minimal asset object
+        asset = { id: assetId, status: 'Available', assignedTo: 'Unassigned' };
+      }
 
       // Update asset status back to "Available"
-      const asset = assets.find(a => a.id === assetId) || await assetService.getAssetById(assetId);
       await assetService.updateAsset(assetId, {
         ...asset,
         status: 'Available',
         assignedTo: 'Unassigned'
       });
 
+      setSuccess('Asset returned successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+      
+      // Refresh the data
       fetchAssignments();
-      fetchAvailableAssets();
+      fetchAssets();
     } catch (err) {
       console.error('Failed to return asset:', err);
-      setError('Failed to return asset. Please try again.');
+      setError(`Failed to return asset: ${err.message || 'Please try again.'}`);
+      setTimeout(() => setError(null), 3000);
     }
   };
 
   const getAssignmentStatus = (assignment) => {
     return assignment.returnDate ? 'Returned' : 'Active';
+  };
+
+  const getAvailableAssets = () => {
+    return assets.filter(asset => asset.status === 'Available');
   };
 
   if (loading) {
@@ -121,7 +151,10 @@ const Assignments = () => {
         <div className="page-header">
           <h1>Asset Assignments</h1>
         </div>
-        <div className="loading">Loading assignments...</div>
+        <div className="loading">
+          <div className="loading-spinner"></div>
+          <p>Loading assignments...</p>
+        </div>
       </div>
     );
   }
@@ -133,7 +166,7 @@ const Assignments = () => {
         <button 
           className="btn btn-primary"
           onClick={() => setShowForm(!showForm)}
-          disabled={assets.length === 0}
+          disabled={getAvailableAssets().length === 0}
         >
           {showForm ? 'Cancel' : '➕ Assign Asset'}
         </button>
@@ -146,7 +179,14 @@ const Assignments = () => {
         </div>
       )}
 
-      {assets.length === 0 && !showForm && (
+      {success && (
+        <div className="alert alert-success">
+          <span className="alert-icon">✓</span>
+          {success}
+        </div>
+      )}
+
+      {getAvailableAssets().length === 0 && !showForm && (
         <div className="alert alert-info">
           <span className="alert-icon">ℹ</span>
           No available assets to assign. All assets are currently assigned or in maintenance.
@@ -169,7 +209,7 @@ const Assignments = () => {
                   required
                 >
                   <option value="">Select Asset</option>
-                  {assets.map(asset => (
+                  {getAvailableAssets().map(asset => (
                     <option key={asset.id} value={asset.id}>
                       {asset.name} ({asset.tag})
                     </option>
@@ -246,8 +286,18 @@ const Assignments = () => {
                   <tr key={assignment.id}>
                     <td>{assignment.assetName}</td>
                     <td>{assignment.assignedTo}</td>
-                    <td>{assignment.assignedDate ? new Date(assignment.assignedDate).toLocaleDateString() : 'N/A'}</td>
-                    <td>{assignment.returnDate ? new Date(assignment.returnDate).toLocaleDateString() : 'Not returned'}</td>
+                    <td>
+                      {assignment.assignedDate ? 
+                        new Date(assignment.assignedDate).toLocaleDateString() : 
+                        'N/A'
+                      }
+                    </td>
+                    <td>
+                      {assignment.returnDate ? 
+                        new Date(assignment.returnDate).toLocaleDateString() : 
+                        'Not returned'
+                      }
+                    </td>
                     <td>
                       <span className={`status-badge status-${getAssignmentStatus(assignment).toLowerCase()}`}>
                         {getAssignmentStatus(assignment)}
@@ -259,6 +309,7 @@ const Assignments = () => {
                         <button
                           className="btn btn-sm btn-outline"
                           onClick={() => handleReturnAsset(assignment.id, assignment.assetId)}
+                          title="Return this asset"
                         >
                           Return
                         </button>

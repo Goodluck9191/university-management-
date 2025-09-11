@@ -8,7 +8,7 @@ import { authService } from '../services/authService';
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalAssets: 0,
-    totalAssignments: 0,
+    activeAssignments: 0, // Changed from totalAssignments to activeAssignments
     activeMaintenance: 0,
     availableAssets: 0
   });
@@ -55,9 +55,15 @@ const Dashboard = () => {
         // Handle assignments data
         if (assignmentsRes.status === 'fulfilled' && assignmentsRes.value && assignmentsRes.value.data) {
           const assignments = assignmentsRes.value.data;
+          
+          // Count only active assignments (those without a return date)
+          const activeAssignmentsCount = assignments.filter(
+            assignment => !assignment.returnDate
+          ).length;
+          
           setStats(prev => ({
             ...prev,
-            totalAssignments: assignments.length
+            activeAssignments: activeAssignmentsCount
           }));
           
           // Get recent assignments (last 5)
@@ -152,7 +158,7 @@ const Dashboard = () => {
           </div>
           <div className="stat-content">
             <h3 className="stat-title">Active Assignments</h3>
-            <p className="stat-value">{stats.totalAssignments}</p>
+            <p className="stat-value">{stats.activeAssignments}</p>
           </div>
         </div>
         
